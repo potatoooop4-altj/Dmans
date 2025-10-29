@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serial Number Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom styles for Inter font and mobile-first container */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+        }
+        .container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 1rem;
+        }
+        /* Custom scrollbar for the output box */
+        #output {
+            resize: none;
+            height: 300px; /* Fixed height for better visual layout */
+        }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary': '#4f46e5',
+                        'primary-dark': '#4338ca',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+
+<div class="container">
+    <div class="w-full max-w-2xl bg-white shadow-xl rounded-xl p-6 md:p-10 border border-gray-100">
+        <h1 class="text-3xl font-extrabold text-gray-900 mb-2 flex items-center">
+            <i data-lucide="key" class="w-6 h-6 mr-3 text-primary"></i>
+            Serial Number Generator
+        </h1>
+        <p class="text-gray-500 mb-8">Configure your components to generate a batch of unique serial numbers.</p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div>
+                <label for="prefix" class="block text-sm font-medium text-gray-700">Prefix (Optional)</label>
+                <input type="text" id="prefix" placeholder="e.g., PROD-" value="" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-primary focus:ring-primary transition duration-150">
+            </div>
+
+            <div>
+                <label for="suffix" class="block text-sm font-medium text-gray-700">Suffix (Optional)</label>
+                <input type="text" id="suffix" placeholder="e.g., -2025" value="" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-primary focus:ring-primary transition duration-150">
+            </div>
+
+            <div>
+                <label for="startNumber" class="block text-sm font-medium text-gray-700">Starting Number (Required)</label>
+                <input type="number" id="startNumber" value="1" min="0" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-primary focus:ring-primary transition duration-150">
+            </div>
+
+            <div>
+                <label for="count" class="block text-sm font-medium text-gray-700">Quantity (Count)</label>
+                <input type="number" id="count" value="10" min="1" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-primary focus:ring-primary transition duration-150">
+            </div>
+
+            <div>
+                <label for="padding" class="block text-sm font-medium text-gray-700">Minimum Numeric Length (Padding)</label>
+                <input type="number" id="padding" value="4" min="1" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-primary focus:ring-primary transition duration-150">
+                <p class="mt-1 text-xs text-gray-500">e.g., 4 results in 0001, 0002, etc.</p>
+            </div>
+
+            <div>
+                <label for="increment" class="block text-sm font-medium text-gray-700">Increment Step</label>
+                <input type="number" id="increment" value="1" min="1" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 border focus:border-primary focus:ring-primary transition duration-150">
+            </div>
+        </div>
+
+        <div class="flex items-center mb-6">
+            <input id="appendMode" type="checkbox" class="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded transition duration-150">
+            <label for="appendMode" class="ml-2 block text-sm font-medium text-gray-700">
+                Append to existing list? (Do not clear output)
+            </label>
+        </div>
+
+        <button id="generateButton" onclick="generateSerials()" class="w-full flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-xl shadow-lg text-white bg-primary hover:bg-primary-dark transition duration-300 ease-in-out transform hover:scale-[1.01]">
+            <i data-lucide="sparkles" class="w-5 h-5 mr-2"></i>
+            Generate Serial Numbers
+        </button>
+
+        <div id="messageBox" class="mt-4 p-3 rounded-lg text-sm hidden" role="alert"></div>
+
+
+        <div class="mt-8">
+            <h2 class="text-lg font-semibold text-gray-900 mb-2">Generated Serial Numbers</h2>
+            <div class="relative">
+                <textarea id="output" readonly placeholder="The generated serial numbers will appear here, one per line." class="w-full p-4 text-gray-800 bg-gray-50 border border-gray-300 rounded-lg text-sm"></textarea>
+                <button id="copyButton" onclick="copyToClipboard()" class="absolute top-2 right-2 p-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <i data-lucide="copy" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <p id="serialCount" class="mt-2 text-sm text-gray-500 hidden"></p>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Initialize Lucide Icons
+    window.onload = function() {
+        lucide.createIcons();
+    };
+
+    // Store the last generated sequence details
+    let lastSequence = null;
+
+    /**
+     * Helper function to show alert messages in the designated box.
+     * @param {string} message - The message content.
+     * @param {string} type - 'error' or 'success'.
+     */
+    function showMessage(message, type) {
+        const box = document.getElementById('messageBox');
+        box.textContent = message;
+        box.classList.remove('hidden', 'bg-red-100', 'text-red-800', 'bg-green-100', 'text-green-800');
+
+        if (type === 'error') {
+            box.classList.add('bg-red-100', 'text-red-800');
+        } else if (type === 'success') {
+            box.classList.add('bg-green-100', 'text-green-800');
+        }
+
+        // Hide after 5 seconds
+        setTimeout(() => {
+            box.classList.add('hidden');
+        }, 5000);
+    }
+
+    /**
+     * Generates the serial numbers based on user configuration.
+     * THIS FUNCTION IS MODIFIED TO HANDLE APPENDING AND SEQUENCE CONTINUATION.
+     */
+    function generateSerials() {
+        // Check if we have a previous sequence and ask user
+        if (lastSequence !== null) {
+            const continueSequence = confirm(
+                `Do you want to continue from the previous sequence?\n\n` +
+                `Last generated: ${lastSequence.lastSerial}\n` +
+                `Next number would be: ${lastSequence.nextNumber}\n\n` +
+                `Click OK to continue from ${lastSequence.nextNumber}, or Cancel to use the current Starting Number.`
+            );
+            
+            if (continueSequence) {
+                document.getElementById('startNumber').value = lastSequence.nextNumber;
+            }
+        }
+
+        // 1. Get and sanitize inputs
+        const prefix = document.getElementById('prefix').value.trim();
+        const suffix = document.getElementById('suffix').value.trim();
+        const startNumber = parseInt(document.getElementById('startNumber').value);
+        const count = parseInt(document.getElementById('count').value);
+        const padding = parseInt(document.getElementById('padding').value);
+        const increment = parseInt(document.getElementById('increment').value);
+        // Get the append mode state
+        const append = document.getElementById('appendMode').checked;
+
+        // 2. Input Validation
+        if (isNaN(startNumber) || startNumber < 0) {
+            showMessage("Please enter a valid Starting Number (must be non-negative).", 'error');
+            return;
+        }
+        if (isNaN(count) || count < 1) {
+            showMessage("Please enter a valid Quantity (must be 1 or more).", 'error');
+            return;
+        }
+        if (isNaN(padding) || padding < 1) {
+            showMessage("Please enter a valid Numeric Length (must be 1 or more).", 'error');
+            return;
+        }
+        if (isNaN(increment) || increment < 1) {
+            showMessage("Please enter a valid Increment Step (must be 1 or more).", 'error');
+            return;
+        }
+
+        const serials = [];
+        let currentNumber = startNumber;
+
+        // 3. Generation Loop
+        for (let i = 0; i < count; i++) {
+            // Format the number with zero-padding
+            const numericPart = String(currentNumber).padStart(padding, '0');
+
+            // Construct the final serial number
+            const serial = `${prefix}${numericPart}${suffix}`;
+            serials.push(serial);
+
+            // Increment for the next serial
+            currentNumber += increment;
+        }
+
+        // 4. Output Results
+        const outputElement = document.getElementById('output');
+        const copyButton = document.getElementById('copyButton');
+        const serialCountElement = document.getElementById('serialCount');
+
+        // Output logic - append or overwrite
+        const newSerialsText = serials.join('\n');
+        const existingText = outputElement.value.trim();
+        let successMessage = '';
+
+        if (append && existingText.length > 0) {
+            // Append mode: add new serials to existing ones
+            outputElement.value = existingText + '\n' + newSerialsText;
+            successMessage = `Appended ${serials.length} new serial numbers successfully!`;
+        } else {
+            // Overwrite mode: replace content with new serials
+            outputElement.value = newSerialsText;
+            successMessage = `Generated ${serials.length} serial numbers successfully!`;
+        }
+        
+        // Calculate total count in the box
+        const totalCount = outputElement.value.split('\n').filter(line => line.trim().length > 0).length;
+
+        copyButton.disabled = totalCount === 0;
+        serialCountElement.textContent = `Total serial numbers in list: ${totalCount}.`;
+        serialCountElement.classList.remove('hidden');
+
+        showMessage(successMessage, 'success');
+
+        // Store the last sequence details for next generation
+        const lastNumericValue = currentNumber - increment; // Get the last number used
+        const lastSerial = `${prefix}${String(lastNumericValue).padStart(padding, '0')}${suffix}`;
+        lastSequence = {
+            lastSerial: lastSerial,
+            nextNumber: currentNumber,
+            prefix: prefix,
+            suffix: suffix,
+            padding: padding,
+            increment: increment
+        };
+    }
+
+    /**
+     * Copies the content of the output textarea to the clipboard.
+     */
+    function copyToClipboard() {
+        const output = document.getElementById('output');
+        output.select();
+        output.setSelectionRange(0, 99999); // For mobile devices
+
+        try {
+            // Use document.execCommand('copy') as navigator.clipboard might be blocked in some iframes
+            document.execCommand('copy');
+            showMessage("Copied all serial numbers to clipboard!", 'success');
+        } catch (err) {
+            console.error('Copy failed:', err);
+            showMessage("Failed to copy. Please manually select and copy the text.", 'error');
+        }
+
+        // Deselect the text after copying
+        window.getSelection().removeAllRanges();
+    }
+</script>
+
+</body>
+</html>
